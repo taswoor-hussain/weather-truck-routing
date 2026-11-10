@@ -55,9 +55,9 @@ class CheckpointSample:
 def build_route_path(steps: Sequence[RouteStep], max_speed_mph: float) -> RoutePath:
     """Stitch step geometries into one path and spread each step's duration over it.
 
-    Each step's speed is capped at ``max_speed_mph`` (trucks are slower than the car
-    profile on highways), and its time is distributed proportionally to the length of
-    its segments.
+    Each step's speed is capped at ``max_speed_mph`` (a safety net for car-profile
+    providers whose highway speeds exceed truck limits), and its time is distributed
+    proportionally to the length of its segments.
     """
     points: list[LatLon] = []
     cumulative_mi: list[float] = []

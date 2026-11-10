@@ -105,6 +105,7 @@ class FactorLevels:
 
 @dataclass(frozen=True, slots=True)
 class RiskAssessment:
+    conditions: WeatherConditions
     level: RiskLevel
     wind_level: RiskLevel
     rain_level: RiskLevel
@@ -153,6 +154,7 @@ def assess(conditions: WeatherConditions, load_lb: float) -> RiskAssessment:
         reasons.append(f"Snow {conditions.snow_in_hr:.2f} in/hr: {levels.snow.label}")
 
     return RiskAssessment(
+        conditions=conditions,
         level=levels.overall,
         wind_level=levels.wind,
         rain_level=levels.rain,

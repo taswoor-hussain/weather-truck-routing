@@ -160,3 +160,22 @@ class TestPlaceSearch:
 
 def test_health(client):
     assert client.get("/api/health").json() == {"status": "ok"}
+
+
+@pytest.mark.django_db
+class TestHeatmap:
+    def test_returns_hourly_risk_grid_for_corridor(self, client):
+        weather = FakeWeather(storm_east_of_lon=-98.5, storm_wind_mph=60)
+        with use_providers(FakeRouter(three_routes()), weather):
+            trip_id = client.post("/api/trips", payload(), format="json").json()["id"]
+
+        with mock.patch("trips.services.heatmap.get_weather_client", return_value=weather):
+            response = client.get(f"/api/trips/{trip_id}/heatmap")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["hours"] == 49
+        assert data["start_time"].endswith(":00:00Z")
+        assert data["cells"]
+        assert all(len(cell["risk"]) == 49 for cell in data["cells"])
+        assert {cell["risk"][0] for cell in data["cells"]} == {0, 4}  # calm vs >= 55 mph

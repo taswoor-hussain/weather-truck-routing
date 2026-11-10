@@ -5,6 +5,7 @@ from rest_framework.views import APIView
 from integrations.geocoding import get_geocoder
 from trips.selectors import get_trip
 from trips.serializers import PlaceQuerySerializer, TripRequestSerializer, TripSerializer
+from trips.services.heatmap import CorridorHeatmapService
 from trips.services.planner import TripPlanner
 
 
@@ -36,3 +37,8 @@ class TripListCreateView(APIView):
 class TripDetailView(APIView):
     def get(self, request, trip_id):
         return Response(TripSerializer(get_trip(trip_id)).data)
+
+
+class TripHeatmapView(APIView):
+    def get(self, request, trip_id):
+        return Response(CorridorHeatmapService().for_trip(get_trip(trip_id)))

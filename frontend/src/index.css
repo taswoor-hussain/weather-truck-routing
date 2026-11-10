@@ -40,3 +40,59 @@ body {
     0 0 0 3px rgb(255 255 255 / 0.6),
     0 2px 6px rgb(15 23 42 / 0.5);
 }
+
+/* Forecast slider: native range input (accessible) over custom track layers. */
+.forecast-range {
+  appearance: none;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.forecast-range::-webkit-slider-runnable-track {
+  height: 100%;
+  background: transparent;
+}
+
+.forecast-range::-moz-range-track {
+  background: transparent;
+}
+
+.forecast-range::-webkit-slider-thumb {
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  margin-top: 1px;
+  border: 3px solid #fff;
+  border-radius: 9999px;
+  background: #1d4ed8;
+  box-shadow: 0 1px 4px rgb(15 23 42 / 0.45);
+}
+
+.forecast-range::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+  border: 3px solid #fff;
+  border-radius: 9999px;
+  background: #1d4ed8;
+  box-shadow: 0 1px 4px rgb(15 23 42 / 0.45);
+}
+
+.forecast-range:focus-visible {
+  outline: none;
+}
+
+.forecast-range:focus-visible::-webkit-slider-thumb {
+  box-shadow: 0 0 0 4px rgb(37 99 235 / 0.35);
+}
+
+.forecast-range:focus-visible::-moz-range-thumb {
+  box-shadow: 0 0 0 4px rgb(37 99 235 / 0.35);
+}
+
+.truck-pin--arrived {
+  opacity: 0.75;
+  border-style: dashed;
+}

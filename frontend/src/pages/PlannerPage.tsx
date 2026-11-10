@@ -16,6 +16,7 @@ import { usePlanTrip, useTrip, useTripHeatmap } from '../hooks/useTrip'
 import { useTripIdParam } from '../hooks/useTripIdParam'
 import { useTripViewState } from '../hooks/useTripViewState'
 import { addHours } from '../lib/format'
+import { routeColor } from '../lib/risk'
 import type { TripRequest } from '../types/api'
 
 const FORECAST_HOURS = 48
@@ -33,6 +34,8 @@ export function PlannerPage() {
   // Hour 0 is the departure hour (the heatmap grid starts at its top of the hour).
   const forecastStart = heatmap?.start_time ?? trip?.departure_time
   const forecastTime = forecastStart ? addHours(forecastStart, forecastHour) : null
+  const selectedIndex = trip?.routes.findIndex((route) => route.id === selectedRouteId) ?? -1
+  const selectedRoute = selectedIndex >= 0 ? trip?.routes[selectedIndex] : undefined
 
   const planError = planTrip.error as ApiError | null
 
@@ -108,6 +111,9 @@ export function PlannerPage() {
               maxHour={heatmap ? heatmap.hours - 1 : FORECAST_HOURS}
               hour={forecastHour}
               onHourChange={view.setForecastHour}
+              route={selectedRoute}
+              routeColor={routeColor(Math.max(selectedIndex, 0))}
+              departureTime={trip.departure_time}
               showHeatmap={view.showHeatmap}
               onShowHeatmapChange={view.setShowHeatmap}
               heatmapStatus={heatmapQuery.status}

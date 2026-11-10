@@ -8,14 +8,14 @@ import type { RouteOption } from '../../types/api'
 
 const icons = new Map<string, DivIcon>()
 
-function truckIcon(label: string, color: string, selected: boolean): DivIcon {
-  const key = `${label}|${color}|${selected}`
+function truckIcon(label: string, color: string, selected: boolean, arrived: boolean): DivIcon {
+  const key = `${label}|${color}|${selected}|${arrived}`
   let icon = icons.get(key)
   if (!icon) {
     const size = selected ? 28 : 22
     icon = divIcon({
       className: '',
-      html: `<div class="truck-pin${selected ? ' truck-pin--selected' : ''}" style="--pin-color:${color}">${label}</div>`,
+      html: `<div class="truck-pin${selected ? ' truck-pin--selected' : ''}${arrived ? ' truck-pin--arrived' : ''}" style="--pin-color:${color}">${arrived ? '&#10003;' : label}</div>`,
       iconSize: [size, size],
       iconAnchor: [size / 2, size / 2],
     })
@@ -46,7 +46,7 @@ export const TruckMarkers = memo(function TruckMarkers({ routes, time, selectedR
       <Marker
         key={route.id}
         position={[position.lat, position.lon]}
-        icon={truckIcon(route.label, routeColor(index), selected)}
+        icon={truckIcon(route.label, routeColor(index), selected, position.status === 'arrived')}
         zIndexOffset={selected ? 1000 : 0}
         keyboard={false}
       >

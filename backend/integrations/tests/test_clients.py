@@ -1,3 +1,4 @@
+import json
 from datetime import datetime, timezone
 
 import pytest
@@ -8,7 +9,9 @@ from core.exceptions import NoRouteFound, UpstreamServiceError
 from core.geo import LatLon, decode_polyline
 from core.http import HttpClient
 from integrations.geocoding import PhotonClient
-from integrations.routing import OsrmClient
+from integrations.routing.osrm import OsrmClient
+from integrations.routing.summary import summarise_road_names
+from integrations.routing.valhalla import ValhallaClient
 from integrations.tests.polyline import encode_polyline
 from integrations.weather import OpenMeteoClient
 
@@ -44,15 +47,20 @@ class TestPhoton:
         assert (places[0].lat, places[0].lon) == (32.77, -96.79)
 
 
-def osrm_route(summary: str, coords: list[tuple[float, float]], duration: float = 600):
+def osrm_route(name: str, coords: list[tuple[float, float]], duration: float = 600):
     return {
         "distance": 1000.0,
         "duration": duration,
         "legs": [
             {
-                "summary": summary,
                 "steps": [
-                    {"geometry": encode_polyline(coords), "distance": 1000.0, "duration": duration},
+                    {
+                        "geometry": encode_polyline(coords),
+                        "distance": 1000.0,
+                        "duration": duration,
+                        "name": "Main Street",
+                        "ref": name,
+                    },
                     # Zero-length arrival step is skipped.
                     {"geometry": encode_polyline(coords[-1:]), "distance": 0, "duration": 0},
                 ],
@@ -66,7 +74,7 @@ class TestOsrm:
     def test_parses_routes_steps_and_summary(self, http):
         responses.get(
             f"{OSRM_URL}/route/v1/driving/-96.000000,32.000000;-95.000000,33.000000",
-            json={"code": "Ok", "routes": [osrm_route("I 30, I 57", [(32, -96), (33, -95)])]},
+            json={"code": "Ok", "routes": [osrm_route("I 30; US 67", [(32, -96), (33, -95)])]},
         )
 
         routes = OsrmClient(OSRM_URL, http).routes(
@@ -75,7 +83,7 @@ class TestOsrm:
 
         assert len(routes) == 1
         route = routes[0]
-        assert route.summary == "I 30, I 57"
+        assert route.summary == "I 30"
         assert len(route.steps) == 1
         assert route.steps[0].points == (LatLon(32, -96), LatLon(33, -95))
         assert responses.calls[0].request.params["alternatives"] == "2"
@@ -109,6 +117,97 @@ class TestOsrm:
         )
         with pytest.raises(UpstreamServiceError):
             OsrmClient(OSRM_URL, http).routes([LatLon(32, -96), LatLon(33, -95)])
+
+
+def test_summary_lists_longest_roads_in_driving_order():
+    steps = [
+        ("Elm St", 1),
+        ("I 30; US 67", 300),
+        ("Ramp", 2),
+        ("I 57", 200),
+        ("US 60", 50),
+        ("", 9),
+    ]
+    assert summarise_road_names(steps) == "I 30, I 57, US 60"
+
+
+VALHALLA_URL = "https://valhalla.test"
+
+
+def valhalla_trip(time_s: float = 3600, length_mi: float = 60.0):
+    shape = encode_polyline([(32, -96), (32.5, -95.5), (33, -95)])
+    return {
+        "summary": {"time": time_s, "length": length_mi},
+        "legs": [
+            {
+                "shape": shape,
+                "maneuvers": [
+                    {
+                        "begin_shape_index": 0,
+                        "end_shape_index": 2,
+                        "time": time_s,
+                        "length": length_mi,
+                        "street_names": ["I 35E", "Stemmons Freeway"],
+                    },
+                    {"begin_shape_index": 2, "end_shape_index": 2, "time": 0, "length": 0},
+                ],
+            }
+        ],
+    }
+
+
+class TestValhalla:
+    @responses.activate
+    def test_parses_trip_and_alternates_with_truck_weight(self, http):
+        responses.get(
+            f"{VALHALLA_URL}/route",
+            json={"trip": valhalla_trip(), "alternates": [{"trip": valhalla_trip(4000)}]},
+        )
+
+        routes = ValhallaClient(VALHALLA_URL, http).routes(
+            [LatLon(32, -96), LatLon(33, -95)], alternatives=2, gross_weight_lb=77_000
+        )
+
+        assert [r.duration_s for r in routes] == [3600, 4000]
+        route = routes[0]
+        assert route.summary == "I 35E"
+        assert route.distance_m == pytest.approx(60 * 1609.344)
+        assert len(route.steps) == 1  # zero-length arrival maneuver dropped
+        assert route.steps[0].points[1] == LatLon(32.5, -95.5)
+
+        request = json.loads(responses.calls[0].request.params["json"])
+        assert request["costing"] == "truck"
+        assert request["alternates"] == 2
+        assert request["costing_options"]["truck"]["weight"] == pytest.approx(34.93, abs=0.01)
+        assert [loc["type"] for loc in request["locations"]] == ["break", "break"]
+
+    @responses.activate
+    def test_via_points_are_pass_through(self, http):
+        responses.get(f"{VALHALLA_URL}/route", json={"trip": valhalla_trip()})
+        ValhallaClient(VALHALLA_URL, http).routes(
+            [LatLon(32, -96), LatLon(32.5, -95), LatLon(33, -95)]
+        )
+        request = json.loads(responses.calls[0].request.params["json"])
+        assert [loc["type"] for loc in request["locations"]] == ["break", "through", "break"]
+        assert "alternates" not in request
+
+    @responses.activate
+    def test_no_path_maps_to_no_route(self, http):
+        responses.get(
+            f"{VALHALLA_URL}/route",
+            json={"error_code": 442, "error": "No path could be found for input"},
+            status=400,
+        )
+        with pytest.raises(NoRouteFound):
+            ValhallaClient(VALHALLA_URL, http).routes([LatLon(32, -96), LatLon(50, 10)])
+
+    @responses.activate
+    def test_other_errors_map_to_upstream_error(self, http):
+        responses.get(
+            f"{VALHALLA_URL}/route", json={"error_code": 154, "error": "Too far"}, status=400
+        )
+        with pytest.raises(UpstreamServiceError):
+            ValhallaClient(VALHALLA_URL, http).routes([LatLon(32, -96), LatLon(33, -95)])
 
 
 def forecast(times, wind, rain, showers, snow):

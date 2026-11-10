@@ -1,38 +1,21 @@
-"""Driving routes via OSRM.
+"""Driving routes via OSRM (car profile; truck speed is approximated by the planner).
 
-Routes are requested with ``steps=true`` (and no full overview geometry): each
-step carries its own geometry, distance and duration, which gives step-level
-speeds for accurate ETAs at a fraction of the cost of per-segment annotations.
+Routes are requested with ``steps=true`` and no overview geometry: each step
+carries its own geometry, distance and duration, which gives step-level speeds for
+accurate ETAs at a fraction of the cost of per-segment annotations.
 """
 
 from __future__ import annotations
 
 from collections.abc import Sequence
-from dataclasses import dataclass
-
-from django.conf import settings
 
 from core.exceptions import NoRouteFound, UpstreamServiceError
 from core.geo import LatLon, decode_polyline
-from core.http import HttpClient, default_http_client
+from core.http import HttpClient
+from integrations.routing.summary import summarise_road_names
+from integrations.routing.types import PROVIDER, RawRoute, RouteStep
 
-PROVIDER = "Routing service"
 NO_ROUTE_CODES = {"NoRoute", "NoSegment"}
-
-
-@dataclass(frozen=True, slots=True)
-class RouteStep:
-    points: tuple[LatLon, ...]
-    distance_m: float
-    duration_s: float
-
-
-@dataclass(frozen=True, slots=True)
-class RawRoute:
-    steps: tuple[RouteStep, ...]
-    distance_m: float
-    duration_s: float
-    summary: str
 
 
 class OsrmClient:
@@ -40,8 +23,13 @@ class OsrmClient:
         self.base_url = base_url.rstrip("/")
         self.http = http
 
-    def routes(self, waypoints: Sequence[LatLon], *, alternatives: int = 0) -> list[RawRoute]:
-        """Fastest route through ``waypoints`` plus up to ``alternatives`` alternatives."""
+    def routes(
+        self,
+        waypoints: Sequence[LatLon],
+        *,
+        alternatives: int = 0,
+        gross_weight_lb: float | None = None,  # car profile: not supported
+    ) -> list[RawRoute]:
         coordinates = ";".join(f"{p.lon:.6f},{p.lat:.6f}" for p in waypoints)
         params = {
             "alternatives": str(alternatives) if alternatives else "false",
@@ -69,28 +57,24 @@ class OsrmClient:
     @staticmethod
     def _to_route(route: dict) -> RawRoute:
         steps: list[RouteStep] = []
-        summaries: list[str] = []
+        named_lengths: list[tuple[str, float]] = []
         for leg in route["legs"]:
-            for name in (leg.get("summary") or "").split(", "):
-                if name and name not in summaries:
-                    summaries.append(name)
             for step in leg["steps"]:
                 points = tuple(decode_polyline(step["geometry"], precision=6))
-                if len(points) >= 2:
-                    steps.append(
-                        RouteStep(
-                            points=points,
-                            distance_m=float(step["distance"]),
-                            duration_s=float(step["duration"]),
-                        )
+                if len(points) < 2:
+                    continue
+                steps.append(
+                    RouteStep(
+                        points=points,
+                        distance_m=float(step["distance"]),
+                        duration_s=float(step["duration"]),
                     )
+                )
+                name = step.get("ref") or step.get("name") or ""
+                named_lengths.append((name, float(step["distance"])))
         return RawRoute(
             steps=tuple(steps),
             distance_m=float(route["distance"]),
             duration_s=float(route["duration"]),
-            summary=", ".join(summaries),
+            summary=summarise_road_names(named_lengths),
         )
-
-
-def get_router() -> OsrmClient:
-    return OsrmClient(settings.PROVIDERS["ROUTING_URL"], default_http_client())

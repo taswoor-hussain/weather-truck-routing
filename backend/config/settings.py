@@ -109,6 +109,12 @@ REST_FRAMEWORK = {
     "DEFAULT_PERMISSION_CLASSES": ["rest_framework.permissions.AllowAny"],
     "UNAUTHENTICATED_USER": None,
     "EXCEPTION_HANDLER": "core.api.exception_handler",
+    # Protect the free upstream providers from bursts.
+    "DEFAULT_THROTTLE_CLASSES": ["rest_framework.throttling.ScopedRateThrottle"],
+    "DEFAULT_THROTTLE_RATES": {
+        "places": env("THROTTLE_PLACES", default="60/min"),
+        "plan": env("THROTTLE_PLAN", default="12/min"),
+    },
 }
 
 CORS_ALLOWED_ORIGINS = env("CORS_ALLOWED_ORIGINS")
@@ -117,7 +123,9 @@ CORS_ALLOWED_ORIGINS = env("CORS_ALLOWED_ORIGINS")
 
 PROVIDERS = {
     "GEOCODING_URL": env("GEOCODING_URL", default="https://photon.komoot.io/api/"),
-    "ROUTING_URL": env("ROUTING_URL", default="https://router.project-osrm.org"),
+    # "valhalla" (truck costing, default) or "osrm" (car profile).
+    "ROUTING_PROVIDER": env("ROUTING_PROVIDER", default="valhalla"),
+    "ROUTING_URL": env("ROUTING_URL", default="https://valhalla1.openstreetmap.de"),
     "WEATHER_URL": env("WEATHER_URL", default="https://api.open-meteo.com/v1/forecast"),
     "HTTP_TIMEOUT_S": env.float("HTTP_TIMEOUT_S", default=20.0),
     "USER_AGENT": env("HTTP_USER_AGENT", default="weather-truck-routing/1.0"),
@@ -127,6 +135,8 @@ PROVIDERS = {
 
 PLANNING = {
     "TRUCK_MAX_SPEED_MPH": env.float("TRUCK_MAX_SPEED_MPH", default=65.0),
+    # Empty tractor-trailer weight; gross weight = tare + load (used for truck routing).
+    "TRUCK_TARE_WEIGHT_LB": env.float("TRUCK_TARE_WEIGHT_LB", default=35_000),
     "ROUTE_OPTIONS": 3,
     "WEATHER_CACHE_TTL_S": env.int("WEATHER_CACHE_TTL_S", default=30 * 60),
     "HEATMAP_HOURS": 48,

@@ -40,14 +40,27 @@ class HttpClient:
         self.session.mount("https://", adapter)
         self.session.mount("http://", adapter)
 
-    def get_json(self, url: str, *, params: dict[str, Any] | None = None, provider: str) -> Any:
+    def get_json(
+        self,
+        url: str,
+        *,
+        params: dict[str, Any] | None = None,
+        provider: str,
+        accept_client_errors: bool = False,
+    ) -> Any:
+        """GET ``url`` and decode JSON.
+
+        ``accept_client_errors`` returns 4xx bodies instead of raising, for providers
+        (like OSRM) that report domain errors such as "no route" as HTTP 400.
+        """
         try:
             response = self.session.get(url, params=params, timeout=self.timeout_s)
         except requests.RequestException as exc:
             logger.warning("%s request failed: %s", provider, exc)
             raise UpstreamServiceError(f"{provider} is unreachable.") from exc
 
-        if response.status_code >= 400:
+        is_accepted_client_error = accept_client_errors and 400 <= response.status_code < 500
+        if response.status_code >= 400 and not is_accepted_client_error:
             logger.warning(
                 "%s responded %s: %s", provider, response.status_code, response.text[:300]
             )

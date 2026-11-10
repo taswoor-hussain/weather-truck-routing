@@ -24,7 +24,7 @@ Enter an origin, destination, departure time and load weight. The app then:
 | Backend  | Django 5.2, Django REST Framework, django-environ, WhiteNoise, gunicorn |
 | Data     | SQLite (default) or PostgreSQL via `DATABASE_URL` |
 | Providers (no API keys) | [Valhalla](https://valhalla1.openstreetmap.de) (truck routing), [Open-Meteo](https://open-meteo.com) (hourly forecast), [Photon](https://photon.komoot.io) (geocoding), Esri canvas basemap |
-| Quality  | pytest, Vitest, ruff, oxlint, GitHub Actions CI |
+| Quality  | pytest, Vitest, ruff, oxlint, GitHub Actions CI, Docker on Railway |
 
 ## Run locally
 
@@ -63,9 +63,17 @@ cd frontend && npm test && npm run lint && npm run build
 ## Deploy
 
 The Docker image serves both the API and the built SPA, so it runs as a single service.
-On **Render**: *New → Blueprint* and pick this repo (`render.yaml`). Any Docker host
-works the same way: set `DJANGO_SECRET_KEY`, `DJANGO_ALLOWED_HOSTS` and
-`DJANGO_CSRF_TRUSTED_ORIGINS`, and optionally `DATABASE_URL`. See `backend/.env.example`.
+On **Railway**, create a service from this repo. `railway.json` selects the Dockerfile
+build and the `/api/health` health check, and Railway provides `PORT`. Set these variables:
+
+| Variable | Example |
+|---|---|
+| `DJANGO_SECRET_KEY` | a long random string |
+| `DJANGO_ALLOWED_HOSTS` | `.up.railway.app` |
+| `DJANGO_CSRF_TRUSTED_ORIGINS` | `https://*.up.railway.app` |
+| `DATABASE_URL` (optional) | reference a Railway PostgreSQL service to keep trips across deploys |
+
+Any other Docker host works the same way. See `backend/.env.example`.
 
 ## How the logic works
 

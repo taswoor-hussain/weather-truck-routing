@@ -42,7 +42,7 @@ export function PlannerPage() {
 
   return (
     <div className="flex h-full flex-col lg:flex-row">
-      <aside className="flex w-full shrink-0 flex-col border-slate-200 bg-slate-50 lg:h-full lg:w-[420px] lg:border-r">
+      <aside className="order-2 flex w-full shrink-0 flex-col lg:order-none border-slate-200 bg-slate-50 lg:h-full lg:w-[420px] lg:border-r">
         <header className="border-b border-slate-200 bg-white px-5 py-4">
           <h1 className="text-lg font-bold tracking-tight text-slate-900">Weather-Aware Truck Routing</h1>
           <p className="text-sm text-slate-500">Compare routes by forecast risk at your truck's arrival time.</p>
@@ -84,7 +84,8 @@ export function PlannerPage() {
         </div>
       </aside>
 
-      <main className="relative min-h-[60vh] flex-1">
+      {/* On small screens the map comes first with a fixed height; the panel scrolls below. */}
+      <main className="relative order-1 h-[70vh] shrink-0 lg:order-none lg:h-auto lg:flex-1">
         <TripMap>
           {trip && (
             <>
@@ -101,7 +102,7 @@ export function PlannerPage() {
         </TripMap>
 
         {trip && forecastStart && (
-          <div className="pointer-events-none absolute inset-x-3 bottom-6 z-[1000] mx-auto max-w-2xl">
+          <div className="pointer-events-none absolute inset-x-2 bottom-2 z-[1000] sm:inset-x-3 sm:bottom-6 mx-auto max-w-2xl">
             <ForecastPanel
               startTime={forecastStart}
               maxHour={heatmap ? heatmap.hours - 1 : FORECAST_HOURS}

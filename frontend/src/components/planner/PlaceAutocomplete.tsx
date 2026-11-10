@@ -22,7 +22,7 @@ export function PlaceAutocomplete({ label, placeholder, value, onChange, error }
   const [open, setOpen] = useState(false)
   const [activeIndex, setActiveIndex] = useState(0)
   const search = usePlaceSearch(open ? text : '')
-  const options = open ? (search.data ?? []) : []
+  const options = open ? search.places : []
 
   // Keep the text in sync when the selected place changes from outside (e.g. form reset).
   const [syncedValue, setSyncedValue] = useState(value)
@@ -45,7 +45,7 @@ export function PlaceAutocomplete({ label, placeholder, value, onChange, error }
     } else if (event.key === 'ArrowUp' && options.length) {
       event.preventDefault()
       setActiveIndex((i) => (i - 1 + options.length) % options.length)
-    } else if (event.key === 'Enter' && open && options[activeIndex]) {
+    } else if (event.key === 'Enter' && open && !search.isSearching && options[activeIndex]) {
       event.preventDefault()
       select(options[activeIndex])
     } else if (event.key === 'Escape') {
@@ -53,7 +53,8 @@ export function PlaceAutocomplete({ label, placeholder, value, onChange, error }
     }
   }
 
-  const showList = open && text.trim().length >= 2
+  // Hide the list until there is something to show (results or a final "no results").
+  const showList = open && text.trim().length >= 2 && (options.length > 0 || !search.isSearching)
 
   return (
     <Field id={id} label={label} error={error}>
@@ -84,7 +85,7 @@ export function PlaceAutocomplete({ label, placeholder, value, onChange, error }
           onBlur={() => setOpen(false)}
           onKeyDown={onKeyDown}
         />
-        {search.isFetching && open && (
+        {search.isSearching && open && (
           <Spinner className="absolute top-2.5 right-3 size-4 text-slate-400" />
         )}
         {showList && (
@@ -110,7 +111,7 @@ export function PlaceAutocomplete({ label, placeholder, value, onChange, error }
                 {place.label}
               </li>
             ))}
-            {!search.isFetching && options.length === 0 && (
+            {!search.isSearching && options.length === 0 && (
               <li className="px-3 py-2 text-slate-500">
                 {search.isError ? 'Search is unavailable right now.' : 'No matching places.'}
               </li>

@@ -52,7 +52,7 @@ export const ForecastPanel = memo(function ForecastPanel({
   }
 
   return (
-    <div className="pointer-events-auto rounded-2xl bg-white/95 px-4 py-3 shadow-lg ring-1 ring-slate-200 backdrop-blur">
+    <div className="pointer-events-auto rounded-2xl bg-white/95 px-3 py-2.5 sm:px-4 sm:py-3 shadow-lg ring-1 ring-slate-200 backdrop-blur">
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
         <button
           type="button"
@@ -64,7 +64,7 @@ export const ForecastPanel = memo(function ForecastPanel({
         </button>
         <div className="min-w-0 flex-1">
           <label htmlFor={sliderId} className="block text-xs font-medium text-slate-500">
-            Forecast · departure + {hour} h
+            Departure + {hour} h
           </label>
           <p className="text-sm font-semibold text-slate-900 tabular-nums" aria-live="polite">
             {formatFullDateTime(time)}
@@ -96,13 +96,13 @@ export const ForecastPanel = memo(function ForecastPanel({
         aria-valuetext={`Departure plus ${hour} hours, ${formatFullDateTime(time)}`}
         className="mt-2 w-full cursor-pointer accent-blue-700"
       />
-      <div className="flex justify-between text-[10px] text-slate-400 tabular-nums" aria-hidden="true">
+      <div className="hidden justify-between text-[10px] text-slate-400 tabular-nums sm:flex" aria-hidden="true">
         {TICKS.map((tick) => (
           <span key={tick}>{tick} h</span>
         ))}
       </div>
 
-      <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-slate-100 pt-2 text-xs text-slate-600">
+      <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-slate-100 pt-2 text-[11px] text-slate-600 sm:text-xs">
         {heatmapStatus === 'error' ? (
           <span className="text-red-700">
             Heatmap unavailable.{' '}

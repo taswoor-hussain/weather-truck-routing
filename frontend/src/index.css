@@ -18,3 +18,25 @@ body {
 .leaflet-container {
   font: inherit;
 }
+
+/* Truck position markers (Leaflet divIcon HTML). */
+.truck-pin {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  border: 2px solid #fff;
+  border-radius: 9999px;
+  background: var(--pin-color);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  box-shadow: 0 1px 4px rgb(15 23 42 / 0.45);
+}
+
+.truck-pin--selected {
+  font-size: 13px;
+  box-shadow:
+    0 0 0 3px rgb(255 255 255 / 0.6),
+    0 2px 6px rgb(15 23 42 / 0.5);
+}

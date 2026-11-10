@@ -1,3 +1,5 @@
+import { memo } from 'react'
+
 import { routeColor } from '../../lib/risk'
 import type { Trip } from '../../types/api'
 import { Alert } from '../ui/Alert'
@@ -9,7 +11,11 @@ interface RouteComparisonProps {
   onSelectRoute: (routeId: number) => void
 }
 
-export function RouteComparison({ trip, selectedRouteId, onSelectRoute }: RouteComparisonProps) {
+export const RouteComparison = memo(function RouteComparison({
+  trip,
+  selectedRouteId,
+  onSelectRoute,
+}: RouteComparisonProps) {
   const recommended = trip.routes.find((route) => route.id === trip.recommendation.route_id)
 
   return (
@@ -48,4 +54,4 @@ export function RouteComparison({ trip, selectedRouteId, onSelectRoute }: RouteC
       </p>
     </section>
   )
-}
+})

@@ -2,24 +2,37 @@ import type { ApiError } from '../api/client'
 import { CheckpointMarkers } from '../components/map/CheckpointMarkers'
 import { EndpointMarkers } from '../components/map/EndpointMarkers'
 import { FitToTrip } from '../components/map/FitToTrip'
+import { HeatmapLayer } from '../components/map/HeatmapLayer'
 import { RouteLines } from '../components/map/RouteLines'
 import { TripMap } from '../components/map/TripMap'
+import { TruckMarkers } from '../components/map/TruckMarkers'
 import { TripForm } from '../components/planner/TripForm'
 import { RouteComparison } from '../components/routes/RouteComparison'
+import { ForecastPanel } from '../components/timeline/ForecastPanel'
 import { Alert } from '../components/ui/Alert'
 import { Button } from '../components/ui/Button'
 import { Spinner } from '../components/ui/Spinner'
-import { usePlanTrip, useTrip } from '../hooks/useTrip'
+import { usePlanTrip, useTrip, useTripHeatmap } from '../hooks/useTrip'
 import { useTripIdParam } from '../hooks/useTripIdParam'
 import { useTripViewState } from '../hooks/useTripViewState'
+import { addHours } from '../lib/format'
 import type { TripRequest } from '../types/api'
+
+const FORECAST_HOURS = 48
 
 export function PlannerPage() {
   const [tripId, setTripId] = useTripIdParam()
   const planTrip = usePlanTrip()
   const tripQuery = useTrip(tripId)
   const trip = tripQuery.data
-  const { selectedRouteId, selectRoute } = useTripViewState(trip)
+  const heatmapQuery = useTripHeatmap(trip?.id ?? null)
+  const heatmap = heatmapQuery.data
+  const view = useTripViewState(trip)
+  const { selectedRouteId, selectRoute, forecastHour } = view
+
+  // Hour 0 is the departure hour (the heatmap grid starts at its top of the hour).
+  const forecastStart = heatmap?.start_time ?? trip?.departure_time
+  const forecastTime = forecastStart ? addHours(forecastStart, forecastHour) : null
 
   const planError = planTrip.error as ApiError | null
 
@@ -76,12 +89,31 @@ export function PlannerPage() {
           {trip && (
             <>
               <FitToTrip trip={trip} />
+              {heatmap && view.showHeatmap && <HeatmapLayer heatmap={heatmap} hour={forecastHour} />}
               <RouteLines routes={trip.routes} selectedRouteId={selectedRouteId} onSelect={selectRoute} />
               <CheckpointMarkers routes={trip.routes} selectedRouteId={selectedRouteId} />
               <EndpointMarkers origin={trip.origin} destination={trip.destination} />
+              {forecastTime && (
+                <TruckMarkers routes={trip.routes} time={forecastTime} selectedRouteId={selectedRouteId} />
+              )}
             </>
           )}
         </TripMap>
+
+        {trip && forecastStart && (
+          <div className="pointer-events-none absolute inset-x-3 bottom-6 z-[1000] mx-auto max-w-2xl">
+            <ForecastPanel
+              startTime={forecastStart}
+              maxHour={heatmap ? heatmap.hours - 1 : FORECAST_HOURS}
+              hour={forecastHour}
+              onHourChange={view.setForecastHour}
+              showHeatmap={view.showHeatmap}
+              onShowHeatmapChange={view.setShowHeatmap}
+              heatmapStatus={heatmapQuery.status}
+              onRetryHeatmap={heatmapQuery.refetch}
+            />
+          </div>
+        )}
       </main>
     </div>
   )

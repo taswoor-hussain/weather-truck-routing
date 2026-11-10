@@ -21,11 +21,6 @@ def client():
     return APIClient()
 
 
-@pytest.fixture(autouse=True)
-def no_throttling(settings):
-    settings.REST_FRAMEWORK = {**settings.REST_FRAMEWORK, "DEFAULT_THROTTLE_CLASSES": []}
-
-
 def payload(**overrides):
     body = {
         "origin": {"label": "Origin", "lat": ORIGIN.lat, "lon": ORIGIN.lon},
@@ -191,3 +186,14 @@ def test_spa_fallback_serves_index(client, settings, tmp_path):
 
 def test_unknown_api_path_is_not_swallowed_by_spa(client):
     assert client.get("/api/does-not-exist").status_code == 404
+
+
+@pytest.mark.django_db
+def test_planning_is_throttled(client):
+    router, weather = FakeRouter(three_routes()), FakeWeather()
+    with use_providers(router, weather):
+        statuses = [
+            client.post("/api/trips", payload(), format="json").status_code for _ in range(13)
+        ]
+    assert statuses[:12] == [201] * 12
+    assert statuses[12] == 429

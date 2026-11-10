@@ -30,7 +30,7 @@ The system must:
  ┌───────────────┐     │                                              │      ┌──────────────────┐
  │ React SPA     │────▶│  /api/places      ──▶ Geocoding client ──────┼─────▶│ Photon (OSM)     │
  │  - Trip form  │     │  /api/trips       ──▶ Trip planner           │      └──────────────────┘
- │  - Map        │     │                        ├─ Routing client ────┼─────▶ OSRM
+ │  - Map        │     │                        ├─ Routing client ────┼─────▶ Valhalla (truck) / OSRM
  │  - Heatmap    │◀────│                        ├─ Checkpoint sampler │
  │  - Slider     │     │                        ├─ Weather client ────┼─────▶ Open-Meteo
  └───────────────┘     │                        ├─ Risk engine        │
@@ -48,7 +48,8 @@ commercial instances.
 | Concern   | Provider              | Why                                                              |
 |-----------|-----------------------|------------------------------------------------------------------|
 | Geocoding | Photon (komoot, OSM)  | Designed for search-as-you-type (Nominatim forbids autocomplete) |
-| Routing   | OSRM                  | Fast, returns alternatives, per-step durations for accurate ETAs |
+| Routing   | Valhalla (FOSSGIS)    | `truck` costing: truck speeds + weight restrictions, native alternates, per-maneuver times |
+| Routing (fallback) | OSRM         | Selectable with `ROUTING_PROVIDER=osrm` (car profile, speed-capped for trucks) |
 | Weather   | Open-Meteo            | Hourly forecast (16 days), imperial units, multi-location batch  |
 
 ### 1.3 Request flow
@@ -57,10 +58,10 @@ commercial instances.
    proxies Photon and normalises results to `{label, lat, lon}`.
 2. **Plan trip**: `POST /api/trips` with coordinates, departure, load and interval.
    The planner:
-   1. fetches route alternatives from OSRM and tops them up to three with
-      via-point detours when OSRM returns fewer;
-   2. samples checkpoints along each route and computes ETAs from the per-step
-      OSRM durations (capped at truck speed);
+   1. fetches truck routes (gross weight = tare + load) with alternatives and
+      tops them up to three with via-point detours when the provider returns fewer;
+   2. samples checkpoints along each route and computes ETAs from the
+      per-maneuver durations (capped at truck speed);
    3. fetches hourly weather for all checkpoints in **one batched, de-duplicated,
       cached** pass;
    4. classifies each checkpoint, aggregates per-route mileage by risk level, and
@@ -85,6 +86,7 @@ and lets the heatmap load progressively.
 | Heatmap = risk level, not raw weather | The heatmap answers the driver's question ("where is it dangerous for *my* load?") using the exact same rules as checkpoints. |
 | Heatmap rendered as a smoothed raster | A small canvas, upsampled with bilinear interpolation in *risk space*, is cheaper and more faithful than density-based heat layers (which sum overlapping points). |
 | Forecast slider anchored at departure | Hour 0 = departure, so the slider also shows where the truck is on each route at that time. |
+| Valhalla truck routing over OSRM | Found during development: the public OSRM server only has a car profile and was slow (12–30 s) under load. Valhalla's truck costing gives truck ETAs and weight-aware roads. OSRM stays available behind the same `RoutingClient` protocol. |
 
 ---
 
@@ -165,9 +167,12 @@ criterion on which it beats the runner-up).
 
 ### 2.7 Truck ETA
 
-OSRM's car profile is used for geometry and durations; each step's speed is capped
-at a configurable truck maximum (default 65 mph), which slows highway stretches
-while keeping urban stretches as reported. Hours-of-service breaks are out of scope.
+Valhalla's `truck` costing already produces truck travel times and avoids roads the
+vehicle may not use (weight is sent as tare 35,000 lb + load). Each maneuver's time is
+spread over its geometry, so ETAs reflect where the truck is slow (cities) or fast
+(interstates). As a safety net for car-profile providers (OSRM), every maneuver's
+speed is also capped at a configurable truck maximum (default 65 mph).
+Hours-of-service breaks are out of scope.
 
 ---
 
@@ -183,17 +188,20 @@ backend/
 │   └── geo.py              # LatLon, haversine, polyline decode, interpolation, simplify
 ├── integrations/           # One module per external provider, returns domain types
 │   ├── geocoding.py        # PhotonClient.search(q) → [Place]
-│   ├── routing.py          # OsrmClient.alternatives(o, d) / via(o, v, d) → [RawRoute]
+│   ├── routing/            # RoutingClient protocol; ValhallaClient (default), OsrmClient
+│   │                       # routes(waypoints, alternatives, gross_weight_lb) → [RawRoute]
 │   └── weather.py          # OpenMeteoClient.hourly(points, start, end) → [HourlySeries]
 └── trips/                  # The Django app for the feature
     ├── domain/             # Pure Python, no Django imports, fully unit-tested
     │   ├── risk.py         # RiskLevel, threshold tables, load rules, assess()
-    │   ├── checkpoints.py  # sample_checkpoints(route, interval, departure)
+    │   ├── checkpoints.py  # RoutePath (distance+time per vertex), sample_checkpoints()
+    │   ├── weather.py      # conditions_at(series, eta): the §2.4 sampling rule
+    │   ├── corridor.py     # Mercator-aligned corridor grid for the heatmap
     │   └── recommendation.py # summarise_route(), rank_routes(), explain()
     ├── services/           # Orchestration, I/O, persistence
-    │   ├── route_options.py # get three distinct routes (OSRM + via-point fallback)
+    │   ├── route_options.py # three distinct routes (alternates + via-point fallback)
     │   ├── planner.py      # TripPlanner.plan(request) → Trip (persisted)
-    │   └── heatmap.py      # build_corridor_grid(), CorridorHeatmapService
+    │   └── heatmap.py      # CorridorHeatmapService (weather + risk per cell/hour)
     ├── models.py           # Trip → RouteOption → Checkpoint
     ├── serializers.py      # Input validation + output shaping
     ├── views.py / urls.py  # Thin API views
@@ -273,6 +281,9 @@ Heatmap response (compact on purpose: about 100 KB for a long trip):
   and time window (Django cache, 30 min TTL).
 * Provider failures map to `502 upstream_unavailable`; no route found maps to
   `422 no_route`.
+* Scoped DRF throttles (`plan` 12/min, `places` 60/min) protect the free providers.
+* Heatmap cost is bounded: at most 24 cells on the long side, only cells within the
+  corridor (25–75 mi of a route) are fetched, and results are cached per trip.
 
 ---
 

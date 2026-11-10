@@ -4,6 +4,8 @@ A React + Django application that helps a truck driver choose the **safest route
 by combining truck routing, **time-aware** weather forecasts along each route, and
 **load-dependent** risk rules.
 
+**Live demo:** https://web-production-4b74d.up.railway.app
+
 Enter an origin, destination, departure time and load weight. The app then:
 
 1. Builds **3 truck routes** (Valhalla `truck` costing with the truck's gross weight).

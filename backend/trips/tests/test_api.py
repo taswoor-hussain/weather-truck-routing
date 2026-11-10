@@ -179,3 +179,15 @@ class TestHeatmap:
         assert data["cells"]
         assert all(len(cell["risk"]) == 49 for cell in data["cells"])
         assert {cell["risk"][0] for cell in data["cells"]} == {0, 4}  # calm vs >= 55 mph
+
+
+def test_spa_fallback_serves_index(client, settings, tmp_path):
+    (tmp_path / "index.html").write_text("<div id=root></div>")
+    settings.FRONTEND_DIST_DIR = tmp_path
+    response = client.get("/some/client/route")
+    assert response.status_code == 200
+    assert b"root" in b"".join(response.streaming_content)
+
+
+def test_unknown_api_path_is_not_swallowed_by_spa(client):
+    assert client.get("/api/does-not-exist").status_code == 404

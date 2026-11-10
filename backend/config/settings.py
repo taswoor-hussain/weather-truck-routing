@@ -95,6 +95,9 @@ USE_TZ = True
 
 STATIC_URL = "static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
+# The built SPA: hashed assets are served from the site root by WhiteNoise.
+FRONTEND_DIST_DIR = Path(env("FRONTEND_DIST_DIR", default=str(REPO_DIR / "frontend" / "dist")))
+WHITENOISE_ROOT = FRONTEND_DIST_DIR if FRONTEND_DIST_DIR.exists() else None
 STORAGES = {
     "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
     "staticfiles": {"BACKEND": "whitenoise.storage.CompressedStaticFilesStorage"},
@@ -118,6 +121,16 @@ REST_FRAMEWORK = {
 }
 
 CORS_ALLOWED_ORIGINS = env("CORS_ALLOWED_ORIGINS")
+
+# --- Production hardening -----------------------------------------------------
+
+if not DEBUG:
+    SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+    SECURE_SSL_REDIRECT = env.bool("DJANGO_SECURE_SSL_REDIRECT", default=True)
+    SECURE_REDIRECT_EXEMPT = [r"^api/health$"]
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    SECURE_CONTENT_TYPE_NOSNIFF = True
 
 # --- External providers -------------------------------------------------------
 

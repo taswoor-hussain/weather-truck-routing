@@ -24,7 +24,7 @@ Enter an origin, destination, departure time and load weight. The app then:
 | Backend  | Django 5.2, Django REST Framework, django-environ, WhiteNoise, gunicorn |
 | Data     | SQLite (default) or PostgreSQL via `DATABASE_URL` |
 | Providers (no API keys) | [Valhalla](https://valhalla1.openstreetmap.de) (truck routing), [Open-Meteo](https://open-meteo.com) (hourly forecast), [Photon](https://photon.komoot.io) (geocoding), Esri canvas basemap |
-| Quality  | pytest (124 tests), Vitest, ruff, oxlint, GitHub Actions CI |
+| Quality  | pytest, Vitest, ruff, oxlint, GitHub Actions CI |
 
 ## Run locally
 

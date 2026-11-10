@@ -40,15 +40,6 @@ export function formatFullDateTime(value: string | Date): string {
   return fullDateTimeFormat.format(new Date(value))
 }
 
-/** Value for an `<input type="datetime-local">` in the browser's time zone. */
-export function toDateTimeLocalValue(date: Date): string {
-  const pad = (n: number) => String(n).padStart(2, '0')
-  return (
-    `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}` +
-    `T${pad(date.getHours())}:${pad(date.getMinutes())}`
-  )
-}
-
 /** The next full hour after `now` (a sensible default departure). */
 export function nextFullHour(now = new Date()): Date {
   const next = new Date(now)

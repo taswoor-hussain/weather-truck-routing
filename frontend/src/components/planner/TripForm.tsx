@@ -1,15 +1,17 @@
 import { useState, type FormEvent } from 'react'
 
-import { nextFullHour, toDateTimeLocalValue } from '../../lib/format'
+import { useNow } from '../../hooks/useNow'
+import { formatFromNow, isDepartureAllowed, MAX_DAYS_AHEAD } from '../../lib/departure'
+import { nextFullHour } from '../../lib/format'
 import type { CheckpointInterval, Place, TripRequest } from '../../types/api'
 import { Button } from '../ui/Button'
 import { Field } from '../ui/Field'
 import { describedBy, inputClass } from '../ui/fieldStyles'
+import { DeparturePicker } from './DeparturePicker'
 import { PlaceAutocomplete } from './PlaceAutocomplete'
 
 const INTERVALS: CheckpointInterval[] = [10, 25, 50]
 const MAX_LOAD_LB = 150_000
-const MAX_DAYS_AHEAD = 7
 
 type FieldErrors = Partial<Record<keyof TripRequest, string>>
 
@@ -23,7 +25,7 @@ interface TripFormProps {
 function validate(values: {
   origin: Place | null
   destination: Place | null
-  departure: string
+  departure: Date
   load: string
 }): FieldErrors {
   const errors: FieldErrors = {}
@@ -32,13 +34,8 @@ function validate(values: {
   if (values.origin && values.destination && values.origin.label === values.destination.label) {
     errors.destination = 'Destination must differ from the origin.'
   }
-  const departure = new Date(values.departure)
-  if (Number.isNaN(departure.getTime())) {
-    errors.departure_time = 'Enter a departure date and time.'
-  } else if (departure.getTime() < Date.now() - 3_600_000) {
-    errors.departure_time = 'Departure cannot be in the past.'
-  } else if (departure.getTime() > Date.now() + MAX_DAYS_AHEAD * 86_400_000) {
-    errors.departure_time = `Departure must be within ${MAX_DAYS_AHEAD} days (forecast range).`
+  if (!isDepartureAllowed(values.departure, new Date())) {
+    errors.departure_time = `Choose a time from now to ${MAX_DAYS_AHEAD} days ahead (forecast range).`
   }
   const load = Number(values.load)
   if (!Number.isInteger(load) || load < 1 || load > MAX_LOAD_LB) {
@@ -50,10 +47,11 @@ function validate(values: {
 export function TripForm({ onSubmit, submitting, serverErrors = {} }: TripFormProps) {
   const [origin, setOrigin] = useState<Place | null>(null)
   const [destination, setDestination] = useState<Place | null>(null)
-  const [departure, setDeparture] = useState(() => toDateTimeLocalValue(nextFullHour()))
+  const [departure, setDeparture] = useState(nextFullHour)
   const [load, setLoad] = useState('38000')
   const [interval, setCheckpointInterval] = useState<CheckpointInterval>(25)
   const [errors, setErrors] = useState<FieldErrors>({})
+  const now = useNow()
 
   const errorFor = (field: keyof TripRequest) => errors[field] ?? serverErrors[field]
 
@@ -65,7 +63,7 @@ export function TripForm({ onSubmit, submitting, serverErrors = {} }: TripFormPr
     onSubmit({
       origin,
       destination,
-      departure_time: new Date(departure).toISOString(),
+      departure_time: departure.toISOString(),
       load_weight_lb: Number(load),
       checkpoint_interval_mi: interval,
     })
@@ -89,15 +87,18 @@ export function TripForm({ onSubmit, submitting, serverErrors = {} }: TripFormPr
       />
 
       <div className="grid grid-cols-2 gap-3">
-        <Field id="departure" label="Departure" error={errorFor('departure_time')}>
-          <input
+        <Field
+          id="departure"
+          label="Departure"
+          error={errorFor('departure_time')}
+          hint={`Departs ${formatFromNow(departure, now)}`}
+        >
+          <DeparturePicker
             id="departure"
-            type="datetime-local"
-            className={inputClass}
             value={departure}
-            onChange={(event) => setDeparture(event.target.value)}
-            aria-invalid={Boolean(errorFor('departure_time'))}
-            aria-describedby={describedBy('departure', errorFor('departure_time'))}
+            onChange={setDeparture}
+            invalid={Boolean(errorFor('departure_time'))}
+            describedBy={describedBy('departure', errorFor('departure_time'), 'hint')}
           />
         </Field>
         <Field id="load" label="Load weight (lb)" error={errorFor('load_weight_lb')}>

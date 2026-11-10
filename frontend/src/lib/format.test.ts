@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { formatDuration, formatMiles, formatWeight, nextFullHour, toDateTimeLocalValue } from './format'
+import { formatDuration, formatMiles, formatWeight, nextFullHour } from './format'
 
 describe('format', () => {
   it('formats durations in hours and minutes', () => {
@@ -12,11 +12,6 @@ describe('format', () => {
   it('formats miles and weight with separators', () => {
     expect(formatMiles(1017.4)).toBe('1,017 mi')
     expect(formatWeight(42000)).toBe('42,000 lb')
-  })
-
-  it('produces datetime-local values in local time', () => {
-    const date = new Date(2026, 10, 9, 7, 5)
-    expect(toDateTimeLocalValue(date)).toBe('2026-11-09T07:05')
   })
 
   it('rounds up to the next full hour', () => {

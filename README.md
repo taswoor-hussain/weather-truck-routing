@@ -6,6 +6,10 @@ by combining truck routing, **time-aware** weather forecasts along each route, a
 
 **Live demo:** https://web-production-4b74d.up.railway.app
 
+**Video walkthrough** (two parts, because Loom's free plan caps each recording at 5 minutes):
+[Part 1](https://www.loom.com/share/a135568feba7440bb2695f7b48d5ad87) ·
+[Part 2](https://www.loom.com/share/dcc325fe269b4bb4aaf048c46d8ba287)
+
 Enter an origin, destination, departure time and load weight. The app then:
 
 1. Builds **3 truck routes** (Valhalla `truck` costing with the truck's gross weight).
